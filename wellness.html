@@ -1,0 +1,1680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#ff6fae" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Glow" />
+<title>Glow · Wellness Tracker</title>
+
+<!-- PWA manifest embedded as data URI so the single file is fully installable -->
+<link rel="manifest" id="manifest-link" />
+<link rel="apple-touch-icon" id="apple-icon" />
+<link rel="icon" id="favicon" />
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<style>
+  :root {
+    --pink: #ff6fae;
+    --pink-soft: #ffd6e8;
+    --purple: #9b6bff;
+    --mint: #4fd1c5;
+    --peach: #ffb56b;
+    --sun: #ffd86b;
+    --sky: #6bb9ff;
+    --bg1: #fff4f9;
+    --bg2: #f0f4ff;
+    --ink: #2a1f3a;
+    --ink-soft: #6b6380;
+    --card: #ffffff;
+    --shadow: 0 10px 30px rgba(155, 107, 255, 0.15);
+    --shadow-soft: 0 4px 14px rgba(255, 111, 174, 0.15);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+    background: linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 100%);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body {
+    padding-bottom: calc(90px + env(safe-area-inset-bottom));
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* ========== HEADER ========== */
+  .header {
+    padding: 18px 20px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .greeting h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 800;
+    background: linear-gradient(90deg, var(--pink), var(--purple));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .greeting p {
+    margin: 2px 0 0;
+    color: var(--ink-soft);
+    font-size: 14px;
+  }
+  .streak-badge {
+    background: linear-gradient(135deg, var(--peach), var(--pink));
+    color: white;
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 14px;
+    box-shadow: var(--shadow-soft);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ========== VIEWS ========== */
+  .view { display: none; padding: 0 16px; animation: fadeIn 0.3s ease; }
+  .view.active { display: block; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ========== CARDS ========== */
+  .card {
+    background: var(--card);
+    border-radius: 22px;
+    padding: 18px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow);
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .card-title {
+    font-size: 17px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  /* ========== PROGRESS RING ========== */
+  .progress-hero {
+    background: linear-gradient(135deg, var(--pink) 0%, var(--purple) 100%);
+    color: white;
+    text-align: center;
+    padding: 22px 18px;
+    border-radius: 24px;
+    margin: 8px 16px 16px;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  .progress-hero::before {
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 140px; height: 140px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 50%;
+  }
+  .progress-hero::after {
+    content: '';
+    position: absolute;
+    bottom: -30px; left: -30px;
+    width: 100px; height: 100px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 50%;
+  }
+  .ring-wrap { position: relative; display: inline-block; z-index: 1; }
+  .ring-wrap svg { transform: rotate(-90deg); }
+  .ring-bg { fill: none; stroke: rgba(255,255,255,0.25); stroke-width: 10; }
+  .ring-fg { fill: none; stroke: white; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 0.6s ease; }
+  .ring-label {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .ring-percent { font-size: 30px; font-weight: 800; }
+  .ring-sub { font-size: 12px; opacity: 0.85; }
+  .hero-msg { margin-top: 10px; font-size: 14px; position: relative; z-index: 1; }
+
+  /* ========== CHECKLIST ITEMS ========== */
+  .item {
+    display: flex;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #f2ecf5;
+    gap: 12px;
+  }
+  .item:last-child { border-bottom: none; }
+  .item-icon {
+    width: 42px; height: 42px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .item-body { flex: 1; min-width: 0; }
+  .item-title { font-weight: 600; font-size: 15px; }
+  .item-meta { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+
+  /* Checkbox */
+  .check {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 2.5px solid #e0d6ec;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+  .check.done {
+    background: linear-gradient(135deg, var(--mint), var(--sky));
+    border-color: transparent;
+    color: white;
+  }
+  .check.done::after { content: '✓'; font-weight: 900; font-size: 16px; }
+
+  /* Counter control */
+  .counter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f6f2fb;
+    padding: 4px 4px;
+    border-radius: 999px;
+  }
+  .counter button {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: white;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--purple);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .counter button:active { transform: scale(0.9); }
+  .counter-val { min-width: 42px; text-align: center; font-weight: 700; font-size: 14px; }
+
+  /* Number input */
+  .num-input {
+    background: #f6f2fb;
+    border: none;
+    border-radius: 12px;
+    padding: 8px 12px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+    width: 90px;
+    text-align: center;
+    outline: none;
+  }
+  .num-input:focus { background: white; box-shadow: 0 0 0 2px var(--pink); }
+
+  /* Water glasses */
+  .water-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .glass {
+    aspect-ratio: 1;
+    border-radius: 10px;
+    background: #f2ecf5;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+  }
+  .glass.filled {
+    background: linear-gradient(135deg, var(--sky), var(--mint));
+    color: white;
+    transform: scale(1.05);
+  }
+  .glass:active { transform: scale(0.92); }
+
+  /* Tea buttons */
+  .tea-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .tea-btn {
+    padding: 14px;
+    border-radius: 16px;
+    border: 2px solid #f2ecf5;
+    background: white;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .tea-btn.done {
+    background: linear-gradient(135deg, #fff4e0, #ffe4c4);
+    border-color: var(--peach);
+    color: #8a4a00;
+  }
+  .tea-btn .tea-emoji { font-size: 24px; }
+
+  /* Buttons */
+  .btn {
+    padding: 12px 20px;
+    border-radius: 14px;
+    border: none;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--pink), var(--purple));
+    color: white;
+    box-shadow: var(--shadow-soft);
+  }
+  .btn-ghost {
+    background: #f6f2fb;
+    color: var(--purple);
+  }
+  .btn-small { padding: 6px 12px; font-size: 13px; border-radius: 10px; }
+  .btn-danger { background: #ffe0e0; color: #c03a3a; }
+
+  /* ========== BOTTOM NAV ========== */
+  .nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: white;
+    border-top: 1px solid #f0e8f5;
+    display: flex;
+    justify-content: space-around;
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+    z-index: 100;
+    box-shadow: 0 -4px 20px rgba(155, 107, 255, 0.08);
+  }
+  .nav-btn {
+    background: none;
+    border: none;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 4px;
+    cursor: pointer;
+    color: var(--ink-soft);
+    font-size: 11px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+  .nav-btn.active { color: var(--pink); }
+  .nav-btn svg { width: 24px; height: 24px; }
+  .nav-btn.active svg { transform: scale(1.1); }
+
+  /* ========== CHARTS ========== */
+  .chart-wrap {
+    position: relative;
+    height: 220px;
+  }
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .stat-card {
+    padding: 14px;
+    border-radius: 18px;
+    color: white;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card.pink { background: linear-gradient(135deg, var(--pink), #ff8fc0); }
+  .stat-card.purple { background: linear-gradient(135deg, var(--purple), #b594ff); }
+  .stat-card.mint { background: linear-gradient(135deg, var(--mint), #6be0d5); }
+  .stat-card.peach { background: linear-gradient(135deg, var(--peach), #ffcc8f); }
+  .stat-label { font-size: 12px; opacity: 0.9; font-weight: 600; }
+  .stat-value { font-size: 24px; font-weight: 800; margin-top: 4px; }
+  .stat-sub { font-size: 11px; opacity: 0.85; margin-top: 2px; }
+
+  /* ========== HISTORY ========== */
+  .history-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: white;
+    border-radius: 16px;
+    margin-bottom: 8px;
+    box-shadow: var(--shadow-soft);
+    cursor: pointer;
+  }
+  .history-date {
+    display: flex; flex-direction: column;
+    align-items: center;
+    background: linear-gradient(135deg, var(--pink-soft), #fff);
+    border-radius: 12px;
+    padding: 8px 12px;
+    min-width: 56px;
+  }
+  .history-date .day { font-size: 20px; font-weight: 800; color: var(--pink); line-height: 1; }
+  .history-date .mon { font-size: 11px; color: var(--ink-soft); text-transform: uppercase; font-weight: 700; margin-top: 2px; }
+  .history-body { flex: 1; min-width: 0; }
+  .history-pct { font-weight: 700; font-size: 15px; }
+  .history-bar {
+    height: 6px; background: #f2ecf5;
+    border-radius: 999px; margin-top: 6px;
+    overflow: hidden;
+  }
+  .history-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--mint), var(--pink));
+    border-radius: 999px;
+  }
+  .history-stats { font-size: 11px; color: var(--ink-soft); margin-top: 4px; }
+
+  /* ========== PLAN EDITOR ========== */
+  .plan-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 10px;
+    background: #faf7fd;
+    border-radius: 12px;
+    margin-bottom: 8px;
+  }
+  .plan-item input[type="text"], .plan-item input[type="number"], .plan-item select {
+    background: white;
+    border: 1px solid #eadff5;
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 14px;
+    outline: none;
+  }
+  .plan-item > input[type="text"] { flex: 1; min-width: 100px; }
+  .plan-item input[type="number"] { width: 100%; }
+  .plan-item select { width: 72px; }
+  .plan-item .emoji-input { width: 44px !important; text-align: center; font-size: 18px; flex: 0 0 auto; }
+  .plan-item label { display: flex; flex-direction: column; gap: 2px; font-size: 10px; color: var(--ink-soft); font-weight: 600; }
+  .plan-item .del {
+    background: none; border: none; color: #c03a3a;
+    font-size: 18px; cursor: pointer; padding: 4px 8px;
+  }
+
+  /* Modal for history day detail */
+  .modal-backdrop {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(42, 31, 58, 0.5);
+    z-index: 200;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 24px 24px 0 0;
+    width: 100%;
+    max-width: 500px;
+    padding: 20px;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  .modal h3 { margin: 0 0 12px; }
+
+  .empty {
+    text-align: center; padding: 40px 20px;
+    color: var(--ink-soft);
+  }
+  .empty .emoji { font-size: 48px; margin-bottom: 10px; }
+
+  .install-hint {
+    margin: 0 16px 14px;
+    padding: 12px 14px;
+    background: linear-gradient(135deg, #e0f5ff, #f0e8ff);
+    border-radius: 16px;
+    font-size: 13px;
+    color: var(--ink);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .install-hint .x {
+    margin-left: auto; cursor: pointer;
+    color: var(--ink-soft); padding: 0 4px;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 100px; left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    background: var(--ink);
+    color: white;
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 150;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (min-width: 640px) {
+    body { max-width: 500px; margin: 0 auto; background: linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 100%); box-shadow: 0 0 60px rgba(0,0,0,0.06); min-height: 100vh; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="greeting">
+    <h1 id="greeting">Hello, beautiful ✨</h1>
+    <p id="date-line"></p>
+  </div>
+  <div class="streak-badge"><span>🔥</span><span id="streak">0</span></div>
+</div>
+
+<div id="install-hint" class="install-hint" style="display:none">
+  <span>📱</span>
+  <span>Tap <b>Share</b> → <b>Add to Home Screen</b> to install like a real app.</span>
+  <span class="x" onclick="dismissInstall()">✕</span>
+</div>
+
+<!-- =========== TODAY VIEW =========== -->
+<div id="view-today" class="view active">
+
+  <div class="progress-hero">
+    <div class="ring-wrap">
+      <svg width="140" height="140" viewBox="0 0 140 140">
+        <circle class="ring-bg" cx="70" cy="70" r="60"></circle>
+        <circle id="ring-fg" class="ring-fg" cx="70" cy="70" r="60" stroke-dasharray="376.99" stroke-dashoffset="376.99"></circle>
+      </svg>
+      <div class="ring-label">
+        <div class="ring-percent" id="ring-percent">0%</div>
+        <div class="ring-sub">of today</div>
+      </div>
+    </div>
+    <div class="hero-msg" id="hero-msg">Let's have a great day 💪</div>
+  </div>
+
+  <!-- Morning weight -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <div class="card-icon" style="background: linear-gradient(135deg, #ffe4f1, #ffd6e8); color: var(--pink);">⚖️</div>
+        Morning weight
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <input type="number" step="0.1" class="num-input" id="weight-input" placeholder="--" />
+      <select id="weight-unit" class="num-input" style="width:70px;">
+        <option value="kg">kg</option>
+        <option value="lb">lb</option>
+      </select>
+      <button class="btn btn-primary btn-small" onclick="saveWeight()">Save</button>
+      <span id="weight-saved" style="color:var(--mint); font-size:13px; font-weight:600;"></span>
+    </div>
+  </div>
+
+  <!-- Exercises -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <div class="card-icon" style="background: linear-gradient(135deg, #e4dcff, #d6c8ff); color: var(--purple);">💪</div>
+        Exercises
+      </div>
+      <button class="btn btn-ghost btn-small" onclick="switchView('plan')">Edit</button>
+    </div>
+    <div id="exercise-list"></div>
+  </div>
+
+  <!-- Water -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <div class="card-icon" style="background: linear-gradient(135deg, #dcf0ff, #c8e6ff); color: var(--sky);">💧</div>
+        Water <span id="water-count" style="color:var(--ink-soft); font-weight:500; font-size:13px; margin-left:6px;">0 / 8</span>
+      </div>
+    </div>
+    <div class="water-grid" id="water-grid"></div>
+  </div>
+
+  <!-- Tea -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <div class="card-icon" style="background: linear-gradient(135deg, #fff0dc, #ffe4c4); color: var(--peach);">🍵</div>
+        Health tea
+      </div>
+    </div>
+    <div class="tea-row">
+      <button class="tea-btn" id="tea-morning" onclick="toggleTea('morning')">
+        <div class="tea-emoji">🌅</div>
+        <div>Morning</div>
+      </button>
+      <button class="tea-btn" id="tea-evening" onclick="toggleTea('evening')">
+        <div class="tea-emoji">🌙</div>
+        <div>Evening</div>
+      </button>
+    </div>
+  </div>
+
+  <!-- Meditation -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <div class="card-icon" style="background: linear-gradient(135deg, #dcf5ef, #c4eee3); color: var(--mint);">🧘</div>
+        Meditation
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <input type="number" min="0" max="120" class="num-input" id="med-input" placeholder="0" />
+      <span style="color:var(--ink-soft); font-size:14px;">minutes</span>
+      <button class="btn btn-primary btn-small" style="margin-left:auto;" onclick="saveMed()">Save</button>
+    </div>
+    <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-small" onclick="setMed(5)">5</button>
+      <button class="btn btn-ghost btn-small" onclick="setMed(10)">10</button>
+      <button class="btn btn-ghost btn-small" onclick="setMed(15)">15</button>
+      <button class="btn btn-ghost btn-small" onclick="setMed(20)">20</button>
+    </div>
+  </div>
+
+  <!-- Cardio -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <div class="card-icon" style="background: linear-gradient(135deg, #ffe0cf, #ffcfb8); color: #ff7a3d;">🏃</div>
+        Cardio <span style="color:var(--ink-soft); font-weight:500; font-size:12px;">(optional)</span>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <input type="number" min="0" max="300" class="num-input" id="cardio-input" placeholder="0" />
+      <span style="color:var(--ink-soft); font-size:14px;">minutes</span>
+      <input type="text" class="num-input" id="cardio-type" placeholder="type" style="width:110px;" />
+      <button class="btn btn-primary btn-small" style="margin-left:auto;" onclick="saveCardio()">Save</button>
+    </div>
+  </div>
+
+  <!-- Healthy food -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <div class="card-icon" style="background: linear-gradient(135deg, #e5f5d8, #d0ebb4); color: #4a8a1f;">🥗</div>
+        Healthy food
+      </div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <label class="item" style="border:none; padding: 8px 0;">
+        <div class="item-icon" style="background:#f2ecf5;">🥬</div>
+        <div class="item-body">
+          <div class="item-title">Low-carb day</div>
+          <div class="item-meta">Almost no carbohydrates</div>
+        </div>
+        <div class="check" id="food-lowcarb" onclick="toggleFood('lowcarb')"></div>
+      </label>
+      <label class="item" style="padding: 8px 0;">
+        <div class="item-icon" style="background:#f2ecf5;">🍎</div>
+        <div class="item-body">
+          <div class="item-title">Ate healthy overall</div>
+          <div class="item-meta">Whole, nourishing foods</div>
+        </div>
+        <div class="check" id="food-healthy" onclick="toggleFood('healthy')"></div>
+      </label>
+    </div>
+    <textarea id="food-notes" placeholder="Notes about what you ate today..." style="width:100%; margin-top:10px; min-height:60px; border-radius:12px; border:1px solid #eadff5; background:#faf7fd; padding:10px; font-family:inherit; font-size:13px; outline:none; resize:vertical;"></textarea>
+    <button class="btn btn-ghost btn-small" style="margin-top:8px;" onclick="saveFoodNotes()">Save notes</button>
+  </div>
+
+</div>
+
+<!-- =========== PROGRESS VIEW =========== -->
+<div id="view-progress" class="view">
+  <div class="stat-grid">
+    <div class="stat-card pink">
+      <div class="stat-label">Current streak</div>
+      <div class="stat-value"><span id="stat-streak">0</span> 🔥</div>
+      <div class="stat-sub">days in a row</div>
+    </div>
+    <div class="stat-card purple">
+      <div class="stat-label">This week</div>
+      <div class="stat-value"><span id="stat-week">0</span>%</div>
+      <div class="stat-sub">average completion</div>
+    </div>
+    <div class="stat-card mint">
+      <div class="stat-label">Weight change</div>
+      <div class="stat-value" id="stat-weight">--</div>
+      <div class="stat-sub" id="stat-weight-sub">no data yet</div>
+    </div>
+    <div class="stat-card peach">
+      <div class="stat-label">Total workouts</div>
+      <div class="stat-value" id="stat-workouts">0</div>
+      <div class="stat-sub">days exercised</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <div class="card-icon" style="background: linear-gradient(135deg, #ffe4f1, #ffd6e8); color: var(--pink);">⚖️</div>
+        Morning weight
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="weight-chart"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <div class="card-icon" style="background: linear-gradient(135deg, #e4dcff, #d6c8ff); color: var(--purple);">✅</div>
+        Daily completion (last 14 days)
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="completion-chart"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <div class="card-icon" style="background: linear-gradient(135deg, #dcf0ff, #c8e6ff); color: var(--sky);">💧</div>
+        Water intake
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="water-chart"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <div class="card-icon" style="background: linear-gradient(135deg, #dcf5ef, #c4eee3); color: var(--mint);">🧘</div>
+        Meditation minutes
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="med-chart"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <div class="card-icon" style="background: linear-gradient(135deg, #ffe0cf, #ffcfb8); color: #ff7a3d;">🏃</div>
+        Cardio minutes
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="cardio-chart"></canvas></div>
+  </div>
+</div>
+
+<!-- =========== HISTORY VIEW =========== -->
+<div id="view-history" class="view">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📖 Previous days</div>
+    </div>
+    <div id="history-list"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🗂️ Your data</div>
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-small" onclick="exportData()">Export backup</button>
+      <button class="btn btn-ghost btn-small" onclick="document.getElementById('import-file').click()">Import backup</button>
+      <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(event)" />
+      <button class="btn btn-danger btn-small" onclick="clearAll()">Erase all</button>
+    </div>
+    <p style="font-size:12px; color:var(--ink-soft); margin-top:10px;">All your data is stored privately on this device. Export a backup regularly so you don't lose it if you clear your browser.</p>
+  </div>
+</div>
+
+<!-- =========== PLAN VIEW =========== -->
+<div id="view-plan" class="view">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🏋️ Exercise plan</div>
+      <button class="btn btn-primary btn-small" onclick="addExercise()">+ Add</button>
+    </div>
+    <div id="plan-exercises"></div>
+    <p style="font-size:12px; color:var(--ink-soft); margin-top:10px;">These show up every day on your checklist.<br>
+    <b>Unit:</b> reps (e.g. squats), sec (e.g. plank — shows as m:ss), or min.<br>
+    <b>Step:</b> how much each + / − button adds. Smaller step = more small wins along the way.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">⚙️ Settings</div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <label style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+        <span style="font-weight:600;">Water goal (glasses)</span>
+        <input type="number" min="1" max="20" class="num-input" id="setting-water" />
+      </label>
+      <label style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+        <span style="font-weight:600;">Meditation goal (min)</span>
+        <input type="number" min="1" max="120" class="num-input" id="setting-med" />
+      </label>
+      <label style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+        <span style="font-weight:600;">Weight unit</span>
+        <select class="num-input" id="setting-unit" style="width:90px;">
+          <option value="kg">kg</option>
+          <option value="lb">lb</option>
+        </select>
+      </label>
+      <label style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+        <span style="font-weight:600;">Your name (optional)</span>
+        <input type="text" class="num-input" id="setting-name" style="width:140px;" placeholder="Anat" />
+      </label>
+      <button class="btn btn-primary" onclick="saveSettings()">Save settings</button>
+    </div>
+  </div>
+</div>
+
+<!-- =========== BOTTOM NAV =========== -->
+<nav class="nav">
+  <button class="nav-btn active" data-view="today" onclick="switchView('today')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg>
+    Today
+  </button>
+  <button class="nav-btn" data-view="progress" onclick="switchView('progress')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>
+    Progress
+  </button>
+  <button class="nav-btn" data-view="history" onclick="switchView('history')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+    History
+  </button>
+  <button class="nav-btn" data-view="plan" onclick="switchView('plan')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 113 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+    Plan
+  </button>
+</nav>
+
+<div id="toast" class="toast"></div>
+
+<!-- History day modal -->
+<div id="modal" class="modal-backdrop" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="modal-title">Day detail</h3>
+    <div id="modal-body"></div>
+    <button class="btn btn-ghost" style="margin-top:12px; width:100%;" onclick="closeModal()">Close</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   DATA MODEL
+   ------------------------------------------------------------
+   state = {
+     settings: { waterGoal, medGoal, unit, name, exercises: [{id, emoji, name, target, type: 'count'|'min'}] },
+     days: { 'YYYY-MM-DD': { exercises: {id: value}, water, teaM, teaE, med, cardio, cardioType,
+                              weight, foodLow, foodHealthy, foodNotes } }
+   }
+   ============================================================ */
+
+const LS_KEY = 'glow-wellness-v1';
+
+const DEFAULT_EXERCISES = [
+  { id: 'squats',   emoji: '🦵', name: 'Squats', target: 100, type: 'count', step: 10 },
+  { id: 'sideleg',  emoji: '↔️', name: 'Side leg lifts', target: 100, type: 'count', step: 10 },
+  { id: 'diagknee', emoji: '🦿', name: 'Diagonal standing knee crunches', target: 100, type: 'count', step: 10 },
+  { id: 'handclap', emoji: '👏', name: 'Hand clap under knees', target: 100, type: 'count', step: 10 },
+  { id: 'bridge',   emoji: '🌉', name: 'Mini bridges', target: 40, type: 'count', step: 10 },
+  { id: 'bicycle',  emoji: '🚴', name: 'Bicycle swaps', target: 60, type: 'count', step: 10 },
+  { id: 'plank',    emoji: '🪵', name: 'Plank', target: 120, type: 'sec', step: 10 }
+];
+
+const DEFAULT_STATE = {
+  settings: {
+    waterGoal: 8,
+    medGoal: 10,
+    unit: 'kg',
+    name: '',
+    exercises: DEFAULT_EXERCISES
+  },
+  days: {}
+};
+
+let state = loadState();
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return structuredClone(DEFAULT_STATE);
+    const s = JSON.parse(raw);
+    // Merge in any new default fields
+    s.settings = Object.assign({}, DEFAULT_STATE.settings, s.settings || {});
+    if (!s.settings.exercises || !s.settings.exercises.length) s.settings.exercises = structuredClone(DEFAULT_EXERCISES);
+    s.days = s.days || {};
+    // Migration: old plank stored as minutes (target 2, type 'min') -> seconds (target 120, type 'sec')
+    s.settings.exercises.forEach(ex => {
+      if (ex.id === 'plank' && ex.type === 'min') {
+        ex.type = 'sec';
+        ex.target = (ex.target || 2) * 60;
+      }
+      // Ensure every exercise has a step
+      if (ex.step == null) {
+        ex.step = ex.type === 'sec' ? 10 : ex.type === 'min' ? 1 : 10;
+      }
+    });
+    // Migration: convert any stored plank value from minutes to seconds
+    Object.values(s.days).forEach(day => {
+      if (day.exercises && day.exercises.plank != null) {
+        // Heuristic: old plank values were in minutes and almost always <= 10
+        if (day.exercises.plank > 0 && day.exercises.plank <= 10 && Number.isInteger(day.exercises.plank)) {
+          day.exercises.plank = day.exercises.plank * 60;
+        }
+      }
+    });
+    return s;
+  } catch (e) {
+    console.error('Failed to load state', e);
+    return structuredClone(DEFAULT_STATE);
+  }
+}
+
+function saveState() {
+  localStorage.setItem(LS_KEY, JSON.stringify(state));
+}
+
+function todayKey() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getDay(key) {
+  if (!state.days[key]) {
+    state.days[key] = {
+      exercises: {},
+      water: 0,
+      teaM: false, teaE: false,
+      med: 0,
+      cardio: 0, cardioType: '',
+      weight: null,
+      foodLow: false, foodHealthy: false, foodNotes: ''
+    };
+  }
+  return state.days[key];
+}
+
+/* ============================================================
+   COMPLETION SCORING
+   A day has many "slots". % complete = slots done / total slots.
+   ============================================================ */
+function computeDayPct(key) {
+  const day = state.days[key];
+  if (!day) return 0;
+  let done = 0, total = 0;
+  // Exercises
+  state.settings.exercises.forEach(ex => {
+    total++;
+    const v = day.exercises[ex.id] || 0;
+    if (v >= ex.target) done++;
+  });
+  // Water
+  total++;
+  if ((day.water || 0) >= state.settings.waterGoal) done++;
+  // Tea morning + evening
+  total += 2;
+  if (day.teaM) done++;
+  if (day.teaE) done++;
+  // Meditation
+  total++;
+  if ((day.med || 0) >= state.settings.medGoal) done++;
+  // Weight logged
+  total++;
+  if (day.weight != null && day.weight > 0) done++;
+  // Food: low-carb + healthy
+  total += 2;
+  if (day.foodLow) done++;
+  if (day.foodHealthy) done++;
+  // (Cardio is optional and not counted in the daily %)
+  return total === 0 ? 0 : Math.round(done / total * 100);
+}
+
+function computeStreak() {
+  let streak = 0;
+  const d = new Date();
+  while (true) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const k = `${y}-${m}-${day}`;
+    const pct = computeDayPct(k);
+    // Count as "streak day" if 60% complete or more
+    if (pct >= 60) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    } else {
+      // don't break streak on today if it's still in progress and started
+      if (k === todayKey() && streak === 0) {
+        d.setDate(d.getDate() - 1);
+        continue;
+      }
+      break;
+    }
+  }
+  return streak;
+}
+
+/* ============================================================
+   RENDERING - TODAY
+   ============================================================ */
+function renderToday() {
+  const key = todayKey();
+  const day = getDay(key);
+
+  // Greeting and date
+  const now = new Date();
+  const hour = now.getHours();
+  const name = state.settings.name ? ', ' + state.settings.name : ', beautiful';
+  let greet = 'Hello';
+  if (hour < 5) greet = 'Good night';
+  else if (hour < 12) greet = 'Good morning';
+  else if (hour < 18) greet = 'Good afternoon';
+  else greet = 'Good evening';
+  document.getElementById('greeting').textContent = greet + name + ' ✨';
+  document.getElementById('date-line').textContent = now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+
+  // Streak
+  const streak = computeStreak();
+  document.getElementById('streak').textContent = streak;
+
+  // Ring
+  const pct = computeDayPct(key);
+  const ring = document.getElementById('ring-fg');
+  const circumference = 2 * Math.PI * 60;
+  ring.style.strokeDashoffset = circumference * (1 - pct / 100);
+  document.getElementById('ring-percent').textContent = pct + '%';
+  const msg = pct === 0 ? "Let's have a great day 💪"
+    : pct < 30 ? "You've started - keep going! 🌱"
+    : pct < 60 ? "Making great progress! 🌸"
+    : pct < 90 ? "So close, you've got this! 🔥"
+    : pct < 100 ? "Almost perfect! ✨"
+    : "Amazing — full day complete! 🎉";
+  document.getElementById('hero-msg').textContent = msg;
+
+  // Exercises
+  const exList = document.getElementById('exercise-list');
+  exList.innerHTML = '';
+  state.settings.exercises.forEach(ex => {
+    const val = day.exercises[ex.id] || 0;
+    const done = val >= ex.target;
+    const step = ex.step || (ex.type === 'sec' ? 10 : ex.type === 'min' ? 1 : 10);
+    const meta = `${formatExVal(val, ex.type)} / ${formatExVal(ex.target, ex.type)}`;
+    const row = document.createElement('div');
+    row.className = 'item';
+    row.innerHTML = `
+      <div class="item-icon" style="background:${done ? 'linear-gradient(135deg,#dcf5ef,#c4eee3)' : '#f6f2fb'};">${ex.emoji}</div>
+      <div class="item-body">
+        <div class="item-title">${ex.name}</div>
+        <div class="item-meta">${meta}</div>
+      </div>
+      <div class="counter">
+        <button onclick="bumpEx('${ex.id}', -${step})">−</button>
+        <div class="counter-val">${formatExVal(val, ex.type)}</div>
+        <button onclick="bumpEx('${ex.id}', ${step})">+</button>
+      </div>
+    `;
+    exList.appendChild(row);
+  });
+
+  // Water
+  const grid = document.getElementById('water-grid');
+  grid.innerHTML = '';
+  for (let i = 0; i < state.settings.waterGoal; i++) {
+    const g = document.createElement('div');
+    g.className = 'glass' + (i < day.water ? ' filled' : '');
+    g.textContent = '💧';
+    g.onclick = () => {
+      day.water = (i < day.water) ? i : i + 1;
+      saveState();
+      renderToday();
+    };
+    grid.appendChild(g);
+  }
+  document.getElementById('water-count').textContent = `${day.water} / ${state.settings.waterGoal}`;
+
+  // Tea
+  document.getElementById('tea-morning').classList.toggle('done', !!day.teaM);
+  document.getElementById('tea-evening').classList.toggle('done', !!day.teaE);
+
+  // Meditation
+  document.getElementById('med-input').value = day.med || '';
+
+  // Cardio
+  document.getElementById('cardio-input').value = day.cardio || '';
+  document.getElementById('cardio-type').value = day.cardioType || '';
+
+  // Weight
+  document.getElementById('weight-input').value = day.weight || '';
+  document.getElementById('weight-unit').value = state.settings.unit;
+
+  // Food
+  document.getElementById('food-lowcarb').classList.toggle('done', !!day.foodLow);
+  document.getElementById('food-healthy').classList.toggle('done', !!day.foodHealthy);
+  document.getElementById('food-notes').value = day.foodNotes || '';
+}
+
+function bumpEx(id, delta) {
+  const day = getDay(todayKey());
+  const cur = day.exercises[id] || 0;
+  const ex = state.settings.exercises.find(e => e.id === id);
+  const max = ex ? Math.max(ex.target * 2, 500) : 500;
+  day.exercises[id] = Math.max(0, Math.min(max, cur + delta));
+  saveState();
+  renderToday();
+}
+
+function toggleTea(kind) {
+  const day = getDay(todayKey());
+  if (kind === 'morning') day.teaM = !day.teaM;
+  else day.teaE = !day.teaE;
+  saveState();
+  renderToday();
+  if ((kind === 'morning' && day.teaM) || (kind === 'evening' && day.teaE)) {
+    toast('Tea logged 🍵');
+  }
+}
+
+function toggleFood(kind) {
+  const day = getDay(todayKey());
+  if (kind === 'lowcarb') day.foodLow = !day.foodLow;
+  else day.foodHealthy = !day.foodHealthy;
+  saveState();
+  renderToday();
+}
+
+function setMed(v) {
+  document.getElementById('med-input').value = v;
+  saveMed();
+}
+function saveMed() {
+  const v = parseInt(document.getElementById('med-input').value) || 0;
+  getDay(todayKey()).med = v;
+  saveState();
+  renderToday();
+  toast('Meditation saved 🧘');
+}
+function saveCardio() {
+  const v = parseInt(document.getElementById('cardio-input').value) || 0;
+  const type = document.getElementById('cardio-type').value.trim();
+  const day = getDay(todayKey());
+  day.cardio = v;
+  day.cardioType = type;
+  saveState();
+  renderToday();
+  toast('Cardio saved 🏃');
+}
+function saveWeight() {
+  const v = parseFloat(document.getElementById('weight-input').value);
+  const unit = document.getElementById('weight-unit').value;
+  state.settings.unit = unit;
+  const day = getDay(todayKey());
+  day.weight = isNaN(v) ? null : v;
+  saveState();
+  document.getElementById('weight-saved').textContent = '✓ Saved';
+  setTimeout(() => document.getElementById('weight-saved').textContent = '', 1500);
+  renderToday();
+}
+function saveFoodNotes() {
+  getDay(todayKey()).foodNotes = document.getElementById('food-notes').value;
+  saveState();
+  toast('Notes saved 📝');
+}
+
+/* ============================================================
+   PROGRESS VIEW
+   ============================================================ */
+let charts = {};
+
+function lastNDays(n) {
+  const arr = [];
+  const d = new Date();
+  for (let i = n - 1; i >= 0; i--) {
+    const dd = new Date(d);
+    dd.setDate(d.getDate() - i);
+    const y = dd.getFullYear();
+    const m = String(dd.getMonth() + 1).padStart(2, '0');
+    const day = String(dd.getDate()).padStart(2, '0');
+    arr.push({ key: `${y}-${m}-${day}`, label: dd.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) });
+  }
+  return arr;
+}
+
+function renderProgress() {
+  // Stats
+  document.getElementById('stat-streak').textContent = computeStreak();
+  const last7 = lastNDays(7);
+  const pcts = last7.map(d => computeDayPct(d.key));
+  const avg = Math.round(pcts.reduce((a,b) => a+b, 0) / pcts.length);
+  document.getElementById('stat-week').textContent = avg;
+
+  // Weight change
+  const weights = [];
+  Object.keys(state.days).sort().forEach(k => {
+    if (state.days[k].weight) weights.push({ k, w: state.days[k].weight });
+  });
+  if (weights.length >= 2) {
+    const diff = weights[weights.length-1].w - weights[0].w;
+    const sign = diff > 0 ? '+' : '';
+    document.getElementById('stat-weight').textContent = sign + diff.toFixed(1) + ' ' + state.settings.unit;
+    document.getElementById('stat-weight-sub').textContent = `since first entry`;
+  } else if (weights.length === 1) {
+    document.getElementById('stat-weight').textContent = weights[0].w + ' ' + state.settings.unit;
+    document.getElementById('stat-weight-sub').textContent = 'first entry';
+  }
+
+  // Total workouts (any exercise logged)
+  let workoutDays = 0;
+  Object.values(state.days).forEach(d => {
+    const anyEx = Object.values(d.exercises || {}).some(v => v > 0);
+    if (anyEx) workoutDays++;
+  });
+  document.getElementById('stat-workouts').textContent = workoutDays;
+
+  // Charts
+  drawWeightChart();
+  drawCompletionChart();
+  drawWaterChart();
+  drawMedChart();
+  drawCardioChart();
+}
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function drawWeightChart() {
+  destroyChart('weight');
+  const ctx = document.getElementById('weight-chart').getContext('2d');
+  const days = lastNDays(30);
+  const labels = days.map(d => d.label);
+  const data = days.map(d => {
+    const dd = state.days[d.key];
+    return dd && dd.weight ? dd.weight : null;
+  });
+  charts.weight = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Weight (' + state.settings.unit + ')',
+        data,
+        borderColor: '#ff6fae',
+        backgroundColor: 'rgba(255,111,174,0.15)',
+        tension: 0.35,
+        spanGaps: true,
+        fill: true,
+        pointRadius: 4,
+        pointBackgroundColor: '#ff6fae'
+      }]
+    },
+    options: chartOpts(false)
+  });
+}
+
+function drawCompletionChart() {
+  destroyChart('completion');
+  const ctx = document.getElementById('completion-chart').getContext('2d');
+  const days = lastNDays(14);
+  const data = days.map(d => computeDayPct(d.key));
+  const colors = data.map(v => v >= 80 ? '#4fd1c5' : v >= 50 ? '#9b6bff' : v >= 20 ? '#ffb56b' : '#e0d6ec');
+  charts.completion = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: days.map(d => d.label),
+      datasets: [{
+        label: '% complete',
+        data,
+        backgroundColor: colors,
+        borderRadius: 8
+      }]
+    },
+    options: chartOpts(true, 100)
+  });
+}
+
+function drawWaterChart() {
+  destroyChart('water');
+  const ctx = document.getElementById('water-chart').getContext('2d');
+  const days = lastNDays(14);
+  const data = days.map(d => (state.days[d.key]?.water) || 0);
+  charts.water = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: days.map(d => d.label),
+      datasets: [{
+        label: 'Glasses',
+        data,
+        backgroundColor: '#6bb9ff',
+        borderRadius: 8
+      }]
+    },
+    options: chartOpts(true)
+  });
+}
+
+function drawMedChart() {
+  destroyChart('med');
+  const ctx = document.getElementById('med-chart').getContext('2d');
+  const days = lastNDays(14);
+  const data = days.map(d => (state.days[d.key]?.med) || 0);
+  charts.med = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: days.map(d => d.label),
+      datasets: [{
+        label: 'Minutes',
+        data,
+        borderColor: '#4fd1c5',
+        backgroundColor: 'rgba(79,209,197,0.18)',
+        tension: 0.35,
+        fill: true,
+        pointRadius: 3,
+        pointBackgroundColor: '#4fd1c5'
+      }]
+    },
+    options: chartOpts(true)
+  });
+}
+
+function drawCardioChart() {
+  destroyChart('cardio');
+  const ctx = document.getElementById('cardio-chart').getContext('2d');
+  const days = lastNDays(30);
+  const data = days.map(d => (state.days[d.key]?.cardio) || 0);
+  charts.cardio = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: days.map(d => d.label),
+      datasets: [{
+        label: 'Minutes',
+        data,
+        backgroundColor: '#ffb56b',
+        borderRadius: 6
+      }]
+    },
+    options: chartOpts(true)
+  });
+}
+
+function chartOpts(beginAtZero, max) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#2a1f3a',
+        padding: 10,
+        titleFont: { weight: 'bold' }
+      }
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { color: '#6b6380', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 7 }
+      },
+      y: {
+        beginAtZero,
+        max,
+        grid: { color: 'rgba(107,99,128,0.08)' },
+        ticks: { color: '#6b6380', font: { size: 10 } }
+      }
+    }
+  };
+}
+
+/* ============================================================
+   HISTORY VIEW
+   ============================================================ */
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  const keys = Object.keys(state.days).sort().reverse();
+  if (keys.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="emoji">📝</div>No days logged yet. Start tracking today!</div>';
+    return;
+  }
+  list.innerHTML = '';
+  keys.forEach(k => {
+    const day = state.days[k];
+    const pct = computeDayPct(k);
+    const d = new Date(k + 'T12:00:00');
+    const dd = d.getDate();
+    const mon = d.toLocaleDateString(undefined, { month: 'short' });
+    const exDone = state.settings.exercises.filter(e => (day.exercises[e.id] || 0) >= e.target).length;
+    const row = document.createElement('div');
+    row.className = 'history-item';
+    row.onclick = () => showDay(k);
+    row.innerHTML = `
+      <div class="history-date">
+        <div class="day">${dd}</div>
+        <div class="mon">${mon}</div>
+      </div>
+      <div class="history-body">
+        <div class="history-pct">${pct}% complete</div>
+        <div class="history-bar"><div class="history-fill" style="width:${pct}%"></div></div>
+        <div class="history-stats">
+          💪 ${exDone}/${state.settings.exercises.length}
+          · 💧 ${day.water || 0}
+          · 🧘 ${day.med || 0}m
+          ${day.weight ? ' · ⚖️ ' + day.weight + state.settings.unit : ''}
+          ${day.cardio ? ' · 🏃 ' + day.cardio + 'm' : ''}
+        </div>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function showDay(key) {
+  const day = state.days[key];
+  if (!day) return;
+  const d = new Date(key + 'T12:00:00');
+  document.getElementById('modal-title').textContent = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const body = document.getElementById('modal-body');
+  const rows = [];
+  rows.push(`<div style="background:#faf7fd; padding:10px; border-radius:12px; margin-bottom:10px;"><b>Completion:</b> ${computeDayPct(key)}%</div>`);
+  if (day.weight) rows.push(`<div>⚖️ <b>Weight:</b> ${day.weight} ${state.settings.unit}</div>`);
+  rows.push('<div style="margin-top:8px;"><b>Exercises:</b></div>');
+  state.settings.exercises.forEach(ex => {
+    const v = day.exercises[ex.id] || 0;
+    const done = v >= ex.target;
+    rows.push(`<div style="padding:4px 0;">${done ? '✅' : '⚪'} ${ex.emoji} ${ex.name}: ${formatExVal(v, ex.type)} / ${formatExVal(ex.target, ex.type)}</div>`);
+  });
+  rows.push(`<div style="margin-top:8px;">💧 <b>Water:</b> ${day.water || 0} / ${state.settings.waterGoal} glasses</div>`);
+  rows.push(`<div>🍵 <b>Tea:</b> ${day.teaM ? '🌅' : '—'} ${day.teaE ? '🌙' : '—'}</div>`);
+  rows.push(`<div>🧘 <b>Meditation:</b> ${day.med || 0} min</div>`);
+  rows.push(`<div>🏃 <b>Cardio:</b> ${day.cardio ? day.cardio + ' min' + (day.cardioType ? ' (' + day.cardioType + ')' : '') : '—'}</div>`);
+  rows.push(`<div>🥬 <b>Low-carb:</b> ${day.foodLow ? 'yes' : 'no'} · 🍎 Healthy: ${day.foodHealthy ? 'yes' : 'no'}</div>`);
+  if (day.foodNotes) rows.push(`<div style="margin-top:8px; background:#faf7fd; padding:10px; border-radius:12px;"><b>Food notes:</b><br>${escapeHtml(day.foodNotes)}</div>`);
+  body.innerHTML = rows.join('');
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+function escapeHtml(s) { return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Format an exercise value based on its type.
+//   count -> "50"
+//   min   -> "3 min"
+//   sec   -> "1:30" (seconds shown as m:ss so 10s gains feel like real progress)
+function formatExVal(v, type) {
+  v = v || 0;
+  if (type === 'min') return v + ' min';
+  if (type === 'sec') {
+    const m = Math.floor(v / 60);
+    const s = Math.floor(v % 60);
+    return m + ':' + String(s).padStart(2, '0');
+  }
+  return String(v);
+}
+
+/* ============================================================
+   PLAN VIEW (editor)
+   ============================================================ */
+function renderPlan() {
+  const el = document.getElementById('plan-exercises');
+  el.innerHTML = '';
+  state.settings.exercises.forEach((ex, idx) => {
+    const row = document.createElement('div');
+    row.className = 'plan-item';
+    row.innerHTML = `
+      <input type="text" class="emoji-input" value="${ex.emoji}" maxlength="2" oninput="updEx(${idx}, 'emoji', this.value)" title="Emoji" />
+      <input type="text" value="${escapeHtml(ex.name)}" oninput="updEx(${idx}, 'name', this.value)" placeholder="Name" />
+      <label style="width:72px;">Target
+        <input type="number" min="1" value="${ex.target}" oninput="updEx(${idx}, 'target', this.value)" />
+      </label>
+      <label style="width:60px;">Step
+        <input type="number" min="1" value="${ex.step || 1}" oninput="updEx(${idx}, 'step', this.value)" />
+      </label>
+      <label style="width:74px;">Unit
+        <select onchange="updEx(${idx}, 'type', this.value)">
+          <option value="count" ${ex.type === 'count' ? 'selected' : ''}>reps</option>
+          <option value="sec" ${ex.type === 'sec' ? 'selected' : ''}>sec</option>
+          <option value="min" ${ex.type === 'min' ? 'selected' : ''}>min</option>
+        </select>
+      </label>
+      <button class="del" onclick="delEx(${idx})" title="Remove">🗑️</button>
+    `;
+    el.appendChild(row);
+  });
+
+  document.getElementById('setting-water').value = state.settings.waterGoal;
+  document.getElementById('setting-med').value = state.settings.medGoal;
+  document.getElementById('setting-unit').value = state.settings.unit;
+  document.getElementById('setting-name').value = state.settings.name || '';
+}
+
+function updEx(idx, field, value) {
+  const ex = state.settings.exercises[idx];
+  if (!ex) return;
+  if (field === 'target' || field === 'step') ex[field] = Math.max(1, parseInt(value) || 1);
+  else ex[field] = value;
+  // When switching unit type, suggest a sensible step if none set yet
+  if (field === 'type') {
+    if (ex.type === 'sec' && ex.step < 5) ex.step = 10;
+    if (ex.type === 'min' && ex.step > 5) ex.step = 1;
+  }
+  saveState();
+}
+
+function delEx(idx) {
+  if (!confirm('Remove this exercise?')) return;
+  state.settings.exercises.splice(idx, 1);
+  saveState();
+  renderPlan();
+  toast('Exercise removed');
+}
+
+function addExercise() {
+  const id = 'ex_' + Date.now();
+  state.settings.exercises.push({ id, emoji: '🏋️', name: 'New exercise', target: 10, type: 'count' });
+  saveState();
+  renderPlan();
+  // scroll to new one
+  setTimeout(() => {
+    const items = document.querySelectorAll('#plan-exercises .plan-item');
+    const last = items[items.length - 1];
+    if (last) last.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 50);
+}
+
+function saveSettings() {
+  state.settings.waterGoal = parseInt(document.getElementById('setting-water').value) || 8;
+  state.settings.medGoal = parseInt(document.getElementById('setting-med').value) || 10;
+  state.settings.unit = document.getElementById('setting-unit').value;
+  state.settings.name = document.getElementById('setting-name').value.trim();
+  saveState();
+  toast('Settings saved ✨');
+}
+
+/* ============================================================
+   EXPORT / IMPORT / ERASE
+   ============================================================ */
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `glow-wellness-${todayKey()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Backup downloaded');
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (!imported.settings || !imported.days) throw new Error('Invalid format');
+      if (!confirm('This will replace all current data. Continue?')) return;
+      state = imported;
+      saveState();
+      renderAll();
+      toast('Backup restored ✓');
+    } catch (err) {
+      alert('Could not read that file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function clearAll() {
+  if (!confirm('Erase ALL wellness data? This cannot be undone.')) return;
+  if (!confirm('Really sure? All days, weights, and exercises will be lost.')) return;
+  state = structuredClone(DEFAULT_STATE);
+  saveState();
+  renderAll();
+  toast('All data erased');
+}
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+function switchView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  if (name === 'today') renderToday();
+  if (name === 'progress') renderProgress();
+  if (name === 'history') renderHistory();
+  if (name === 'plan') renderPlan();
+  window.scrollTo(0, 0);
+}
+
+function renderAll() {
+  renderToday();
+  renderProgress();
+  renderHistory();
+  renderPlan();
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+/* ============================================================
+   PWA / INSTALLABILITY
+   - Generate a manifest + icon on the fly as data URIs so the
+     single-file app can be "added to home screen" on iOS/Android.
+   ============================================================ */
+function setupPWA() {
+  // Generate icon (a pink gradient circle with a sparkle)
+  const canvas = document.createElement('canvas');
+  canvas.width = 512; canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 512, 512);
+  grad.addColorStop(0, '#ff6fae');
+  grad.addColorStop(1, '#9b6bff');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 512, 512);
+  ctx.font = 'bold 260px -apple-system, Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'white';
+  ctx.fillText('✨', 256, 270);
+  const iconUrl = canvas.toDataURL('image/png');
+  document.getElementById('apple-icon').href = iconUrl;
+  document.getElementById('favicon').href = iconUrl;
+
+  const manifest = {
+    name: 'Glow Wellness',
+    short_name: 'Glow',
+    start_url: '.',
+    display: 'standalone',
+    background_color: '#fff4f9',
+    theme_color: '#ff6fae',
+    icons: [
+      { src: iconUrl, sizes: '512x512', type: 'image/png' }
+    ]
+  };
+  const manifestUrl = 'data:application/manifest+json;base64,' + btoa(JSON.stringify(manifest));
+  document.getElementById('manifest-link').href = manifestUrl;
+
+  // Show install hint on iOS if not already installed
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if (!isStandalone && isIOS && !localStorage.getItem('install-dismissed')) {
+    document.getElementById('install-hint').style.display = 'flex';
+  }
+}
+function dismissInstall() {
+  localStorage.setItem('install-dismissed', '1');
+  document.getElementById('install-hint').style.display = 'none';
+}
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+  setupPWA();
+  renderAll();
+
+  // Keep date fresh if left open across midnight
+  setInterval(() => {
+    const curKey = document.getElementById('date-line').dataset.key;
+    if (curKey !== todayKey()) {
+      document.getElementById('date-line').dataset.key = todayKey();
+      renderAll();
+    }
+  }, 60000);
+  document.getElementById('date-line').dataset.key = todayKey();
+});
+</script>
+
+</body>
+</html>
